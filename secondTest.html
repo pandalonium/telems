@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>firefly map test</title>
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+            integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+            crossorigin=""
+        />
+        <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin="">
+        </script>
+    </head>
+    <body>
+        <div id="map" style="height:500px;"></div>
+        <button id="opts" style="position: fixed; left:10px;bottom: 10px;">Options</button>
+
+        <script>
+            
+            
+            var map = L.map('map').setView([52.597967, -1.338714], 16);
+            L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            }).addTo(map);
+            var currentMarker;
+            var currentMarkerInit = true;
+            function ColStr(r,g,b) {
+                return `rgb(${r},${g},${b})`;
+            }
+            function ColorGradient(item,min,max, colours) {
+                var colLen = colours.length - 1;
+                if (max==min) {
+                    tVal = 0
+                } else {
+                    var tVal = (item - min)/(max-min); 
+                }
+                
+                // converts data point to number from 0 to 1 for gradient
+                var gradientIndex = Math.min(Math.floor(tVal*colLen),colLen-1);
+                //console.log(item);
+                var tSub = (tVal*colLen) % 1;
+                if (item==max) {
+                    tSub++
+                }
+                var colStart = colours[gradientIndex];
+                var colStop = colours[gradientIndex+1];
+                var r = tSub * colStop[0] + (1-tSub) * colStart[0];
+                var g = tSub * colStop[1] + (1-tSub) * colStart[1];
+                var b = tSub * colStop[2] + (1-tSub) * colStart[2];
+                return ColStr(r,g,b);
+            }
+            function LoadPoints(dict) {
+                for (i = 0; i < dict.length; i++) {
+                    var colour = ColorGradient(dict[i]["gps_spd"],0,20,[[255,0,0],[224, 150, 0],[0,255,0]])
+                    var marker_radius = 5;
+                    var outline_width = 0;
+                    var marker_opacity = 1;
+                    if (i + 1 == dict.length) {
+                        if (currentMarkerInit) {
+                            currentMarker = L.circleMarker(
+                                [dict[i].lat,dict[i].long],
+                                {"bubblingMouseEvents": true, "color": 
+                            "CornflowerBlue", 
+                            "dashArray": null, "dashOffset": null, "fill": true, 
+                            "fillColor": "CornflowerBlue", "fillOpacity": 0.3, 
+                            "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", 
+                            "opacity": 1.0, "radius": 10, "stroke": true, "weight": 
+                        outline_width = 4}
+                            ).addTo(map);
+                            currentMarkerInit = false;
+                        } else {
+                            var latlng = new L.LatLng(dict[i].lat,dict[i].long)
+                            currentMarker.setLatLng(latlng);
+                            currentMarker.bringToFront();
+                        }
+                    }
+                    //console.log(colour);
+                    
+                    var circle = L.circleMarker(
+                        [dict[i].lat,dict[i].long],
+                            {"bubblingMouseEvents": true, "color": 
+                            colour, 
+                            "dashArray": null, "dashOffset": null, "fill": true, 
+                            "fillColor": colour, "fillOpacity": marker_opacity, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": marker_radius, "stroke": true, "weight": outline_width}
+                        ).addTo(map);
+                        circle.bindTooltip(
+                            `gps_spd: ${dict[i]["gps_spd"]}`,
+                            {"sticky":true});
+            }
+            }
+            var currentLoaded = [] // currently loaded JSON: can be compared to find changes
+            var data = [];
+            window.addEventListener("keypress", (e) => {
+                e = e || event.window;
+                if (e.keyCode != 114) { // r
+                    return;
+                }
+                var req = new XMLHttpRequest();
+                req.open("GET", "./data.json");
+                req.send();
+                req.onreadystatechange = function () { 
+                if (this.readyState == 4 && this.status == 200) { 
+                    var res = this.responseText;
+                    var resArr = JSON.parse(res);
+                    var spliceIndex = resArr.findIndex(
+                        (x) => JSON.stringify(x) == JSON.stringify(currentLoaded.at(-1))
+                    );
+                    if (spliceIndex == -1) {
+                        LoadPoints(resArr);
+                    } else {
+                        LoadPoints(resArr.slice(spliceIndex,-1))
+                    }
+                    currentLoaded = resArr;
+                } 
+            } 
+            }
+            
+        )
+        document.getElementById("opts").addEventListener("click",() => {
+            optswin = window.open("http://localhost:8000/options.html","__blank","popup:yes");
+            var update = optswin.document.getElementById("update");
+            update.addEventListener("click", (e) => {
+                optswin.close();
+            })
+        })
+        </script>
+    </body>
+</html>
