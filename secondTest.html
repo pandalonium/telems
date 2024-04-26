@@ -16,7 +16,11 @@
         <button id="opts" style="position: fixed; left:10px;bottom: 10px;">Options</button>
 
         <script>
-            
+            function hexToRgb(hex) { // Credit: stack overflow
+                var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? [parseInt(result[1], 16),parseInt(result[2], 16),parseInt(result[3], 16)]
+                : null;
+}
             
             var map = L.map('map').setView([52.597967, -1.338714], 16);
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -25,6 +29,12 @@
             }).addTo(map);
             var currentMarker;
             var currentMarkerInit = true;
+            var dataField = "gps_spd"
+            var minimum = 0
+            var maximum = 20
+            var lowCol = [255,0,0]
+            var medCol = [224, 150, 0]
+            var highCol = [0,255,0]
             function ColStr(r,g,b) {
                 return `rgb(${r},${g},${b})`;
             }
@@ -52,7 +62,7 @@
             }
             function LoadPoints(dict) {
                 for (i = 0; i < dict.length; i++) {
-                    var colour = ColorGradient(dict[i]["gps_spd"],0,20,[[255,0,0],[224, 150, 0],[0,255,0]])
+                    var colour = ColorGradient(dict[i][dataField],minimum,maximum,[lowCol,medCol,highCol])
                     var marker_radius = 5;
                     var outline_width = 0;
                     var marker_opacity = 1;
@@ -91,7 +101,14 @@
             }
             var currentLoaded = [] // currently loaded JSON: can be compared to find changes
             var data = [];
-            window.addEventListener("keypress", (e) => {
+            const evtSource = new EventSource("http://192.168.1.4:8000/stream")
+            evtSource.onmessage = (e) => {
+                var resArr = []
+
+                    var resArr = [JSON.parse(e.data)];
+                    LoadPoints(resArr);
+            }
+            /*window.addEventListener("keypress", (e) => {
                 e = e || event.window;
                 if (e.keyCode != 114) { // r
                     return;
@@ -116,13 +133,18 @@
             } 
             }
             
-        )
+        )*/
         document.getElementById("opts").addEventListener("click",() => {
             optswin = window.open("http://localhost:8000/options.html","__blank","popup:yes");
-            var update = optswin.document.getElementById("update");
-            update.addEventListener("click", (e) => {
-                optswin.close();
-            })
+            optswin.onload = () => {
+                console.log(optswin)
+                var update = optswin.document.getElementById("update");
+                update.addEventListener("click", (e) => {
+                    dataField = (optswin.document.getElementById("colorData").value)
+                    optswin.close();
+                })
+            }
+            
         })
         </script>
     </body>
