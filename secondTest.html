@@ -16,11 +16,20 @@
         <button id="opts" style="position: fixed; left:10px;bottom: 10px;">Options</button>
 
         <script>
-            function hexToRgb(hex) { // Credit: stack overflow
+            // Credit: stack overflow for rgb-hex conversions
+            function hexToRgb(hex) { 
                 var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
                 return result ? [parseInt(result[1], 16),parseInt(result[2], 16),parseInt(result[3], 16)]
                 : null;
-}
+            }
+            function componentToHex(c) {
+                var hex = c.toString(16);
+                return hex.length == 1 ? "0" + hex : hex;
+            }
+
+            function rgbToHex(r, g, b) {
+                 return "#" + componentToHex(r) + componentToHex(g) + componentToHex(b);
+            }
             
             var map = L.map('map').setView([52.597967, -1.338714], 16);
             L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -34,14 +43,16 @@
             var maximum = 20
             var lowCol = [255,0,0]
             var medCol = [224, 150, 0]
-            var highCol = [0,255,0]
+            var hiCol = [0,255,0]
             function ColStr(r,g,b) {
                 return `rgb(${r},${g},${b})`;
             }
             function ColorGradient(item,min,max, colours) {
                 var colLen = colours.length - 1;
-                if (max==min) {
+                if (max==min || item < min) {
                     tVal = 0
+                } else if (item > max) {
+                    tVal = 1;
                 } else {
                     var tVal = (item - min)/(max-min); 
                 }
@@ -62,7 +73,7 @@
             }
             function LoadPoints(dict) {
                 for (i = 0; i < dict.length; i++) {
-                    var colour = ColorGradient(dict[i][dataField],minimum,maximum,[lowCol,medCol,highCol])
+                    var colour = ColorGradient(dict[i][dataField],minimum,maximum,[lowCol,medCol,hiCol])
                     var marker_radius = 5;
                     var outline_width = 0;
                     var marker_opacity = 1;
@@ -95,7 +106,7 @@
                             "fillColor": colour, "fillOpacity": marker_opacity, "fillRule": "evenodd", "lineCap": "round", "lineJoin": "round", "opacity": 1.0, "radius": marker_radius, "stroke": true, "weight": outline_width}
                         ).addTo(map);
                         circle.bindTooltip(
-                            `gps_spd: ${dict[i]["gps_spd"]}`,
+                            `${dataField}: ${dict[i][dataField]}`,
                             {"sticky":true});
             }
             }
@@ -104,9 +115,15 @@
             const evtSource = new EventSource("http://192.168.1.4:8000/stream")
             evtSource.onmessage = (e) => {
                 var resArr = []
-
+                try {
                     var resArr = [JSON.parse(e.data)];
+                    currentLoaded.push(resArr[0]);
                     LoadPoints(resArr);
+                } catch (err) {
+                    console.log(e.data);
+                    console.log(err);
+
+                }
             }
             /*window.addEventListener("keypress", (e) => {
                 e = e || event.window;
@@ -138,10 +155,35 @@
             optswin = window.open("http://localhost:8000/options.html","__blank","popup:yes");
             optswin.onload = () => {
                 console.log(optswin)
+                optswin.document.getElementById("colorData").value = dataField;
+                optswin.document.getElementById("minimum").value = minimum;
+                optswin.document.getElementById("maximum").value = maximum;
+                optswin.document.getElementById("lowCol").value = rgbToHex(...lowCol)
+                optswin.document.getElementById("medCol").value = rgbToHex(...medCol)
+                optswin.document.getElementById("hiCol").value = rgbToHex(...hiCol)
+                optswin.document.getElementById("mapHeight").value = document.getElementById("map").style.height;
                 var update = optswin.document.getElementById("update");
+
                 update.addEventListener("click", (e) => {
                     dataField = (optswin.document.getElementById("colorData").value)
+                    minimum = (optswin.document.getElementById("minimum").value)
+                    maximum = (optswin.document.getElementById("maximum").value)
+                    lowCol = hexToRgb(optswin.document.getElementById("lowCol").value)
+                    medCol = hexToRgb(optswin.document.getElementById("medCol").value)
+                    hiCol = hexToRgb(optswin.document.getElementById("hiCol").value)
+                    document.getElementById("map").style.height = optswin.document.getElementById("mapHeight").value;
+                    
+
                     optswin.close();
+                    for (i=0;i<Object.keys(map._layers).length;i++) {
+                        if (map._layers[Object.keys(map._layers)[i]] instanceof L.TileLayer) {
+                            continue
+                        }
+                        
+                        map.removeLayer(map._layers[Object.keys(map._layers)[i]]);
+                    }
+                    currentMarkerInit = true;
+                    LoadPoints(currentLoaded);
                 })
             }
             
